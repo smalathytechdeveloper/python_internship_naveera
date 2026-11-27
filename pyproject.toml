@@ -13,6 +13,7 @@ dependencies = [
     "fastapi>=0.165.0",
     "httpx[http2]>=0.28.1",
     "langchain>=1.5.2",
+    "langchain-core>=1.8.4",
     "langchain-groq>=1.2.1",
     "psycopg[binary]>=3.3.9",
     "pydantic-settings>=2.16.3",

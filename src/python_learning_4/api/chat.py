@@ -4,6 +4,9 @@ from groq import AsyncGroq
 from config import settings
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnableLambda, RunnableWithMessageHistory
+from langchain_core.chat_history import InMemoryChatMessageHistory
 router = APIRouter()
 
 client = AsyncGroq(
@@ -113,3 +116,62 @@ async def chat_langchain(request: ChatRequest):
     )
 
     return ChatResponse(response=answer)
+
+
+
+
+
+def process_question(data):
+    return {
+        **data,
+        "question": data["question"].strip()
+    }
+
+question_runnable = RunnableLambda(process_question)
+
+
+chat_template_history = {}
+
+def get_session_history(session_id:str):
+    if session_id not in chat_template_history:
+        chat_template_history[session_id] = InMemoryChatMessageHistory()
+        
+    return chat_template_history[session_id]
+    
+@router.post(
+    "/chat-prompt-template-langchain",
+    response_model=ChatResponse
+)
+async def chat_template(request:ChatRequest):
+
+    session_id = request.session_id 
+    user_message = request.question
+    
+    if user_message.lower() == "end":
+        chat_template_history.pop(session_id, None)
+        return ChatResponse(response="Chat ended!")
+    
+    if(request.is_new_chat == False and session_id not in chat_template_history):
+        raise HTTPException(status_code=404,detail="Invalid Chat session!!")
+    
+    template = ChatPromptTemplate.from_messages([
+        ("system", "You are a simple chatbot answering user questions in simple terms in 2 lines."),
+         MessagesPlaceholder(variable_name="history"),
+        ("human", "{question}")
+    ])
+
+    chain = question_runnable | template | langchain_llm
+
+    chain_with_history = RunnableWithMessageHistory(chain,
+                                                    get_session_history,
+                                                    input_messages_key="question",
+                                                    history_messages_key="history")
+
+    ai_answer = await chain_with_history.ainvoke(
+        {"question": request.question},
+        config={"configurable":{"session_id":request.session_id}}
+    )
+
+    return ChatResponse(response=ai_answer.content)
+
+    

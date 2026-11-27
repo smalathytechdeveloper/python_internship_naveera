@@ -15,7 +15,7 @@ async def main():
             
                 user_message = input("You:").strip()
 
-                response = await client.post("/api/chat-langchain",
+                response = await client.post("/api/chat-prompt-template-langchain",
                     json={
                         "session_id": session_id,
                         "question":user_message,
